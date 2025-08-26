@@ -32,14 +32,40 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ clients, prospects, sessi
 
   const adminKpis = useMemo(() => [
     { label: 'Clients actifs (total)', value: clients.filter(c=>c.status==='active').length, icon: Users, color: 'blue' as const },
-    { label: 'Nouv. clients 30j (delta vs 30j-1)', value: (()=>{ 
-        const today=new Date(); const winStart=new Date(today.getTime()-29*864e5);
-        const prevStart=new Date(today.getTime()-59*864e5); const prevEnd=new Date(today.getTime()-30*864e5);
-        const curr = clients.filter(c=>{ const d=new Date(c.startDate); return d>=winStart && d<=today; }).length;
-        const prev = clients.filter(c=>{ const d=new Date(c.startDate); return d>=prevStart && d<=prevEnd; }).length;
-        (adminDelta as any).value = prev>0 ? Math.round(((curr - prev)/prev)*100) : (curr>0?100:0);
+    { label: 'Nouv. clients 30j (delta vs 30j-1)', value: (() => {
+        const today = new Date();
+        const winStart = new Date(today.getTime() - 29 * 864e5);
+        const prevStart = new Date(today.getTime() - 59 * 864e5);
+        const prevEnd = new Date(today.getTime() - 30 * 864e5);
+        const curr = clients.filter(c => {
+          const d = new Date(c.startDate);
+          return d >= winStart && d <= today;
+        }).length;
+        const prev = clients.filter(c => {
+          const d = new Date(c.startDate);
+          return d >= prevStart && d <= prevEnd;
+        }).length;
         return curr;
-      })(), icon: TrendingUp, color: 'green' as const, delta: (globalThis.adminDelta || (globalThis.adminDelta={value:0}), globalThis.adminDelta) as any },
+      })(), icon: TrendingUp, color: 'green' as const, delta: (() => {
+        const today = new Date();
+        const winStart = new Date(today.getTime() - 29 * 864e5);
+        const prevStart = new Date(today.getTime() - 59 * 864e5);
+        const prevEnd = new Date(today.getTime() - 30 * 864e5);
+        const curr = clients.filter(c => {
+          const d = new Date(c.startDate);
+          return d >= winStart && d <= today;
+        }).length;
+        const prev = clients.filter(c => {
+          const d = new Date(c.startDate);
+          return d >= prevStart && d <= prevEnd;
+        }).length;
+        const deltaValue = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : (curr > 0 ? 100 : 0);
+        return {
+          value: deltaValue,
+          type: deltaValue > 0 ? 'positive' as const : deltaValue < 0 ? 'negative' as const : 'neutral' as const,
+          label: '%'
+        };
+      })() },
     { label: 'Mes séances cette semaine', value: sessions.filter(s=>{
         const d=new Date(s.date); const day=d.getDay(); const monday = new Date(d); monday.setDate(d.getDate()-day+(day===0?-6:1));
         const today=new Date(); const wstart=new Date(today); const td=today.getDay(); wstart.setDate(today.getDate()-td+(td===0?-6:1));
@@ -51,10 +77,24 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ clients, prospects, sessi
 
   const coachKpis = useMemo(() => [
     { label: 'Mes clients actifs', value: clients.filter(c=>c.status==='active' && c.assignedCoachId===currentUser.id).length, icon: Users, color: 'blue' as const },
-    { label: 'Nouv. clients 30j (moi)', value: (()=>{ 
-        const today=new Date(); const winStart=new Date(today.getTime()-29*864e5);
-        return clients.filter(c=>c.assignedCoachId===currentUser.id && new Date(c.startDate)>=winStart && new Date(c.startDate)<=today).length;
-      })(), icon: TrendingUp, color: 'green' as const },
+    { label: 'Nouv. clients 30j (moi)', value: (() => {
+        const today = new Date();
+        const winStart = new Date(today.getTime() - 29 * 864e5);
+        return clients.filter(c => c.assignedCoachId === currentUser.id && new Date(c.startDate) >= winStart && new Date(c.startDate) <= today).length;
+      })(), icon: TrendingUp, color: 'green' as const, delta: (() => {
+        const today = new Date();
+        const winStart = new Date(today.getTime() - 29 * 864e5);
+        const prevStart = new Date(today.getTime() - 59 * 864e5);
+        const prevEnd = new Date(today.getTime() - 30 * 864e5);
+        const curr = clients.filter(c => c.assignedCoachId === currentUser.id && new Date(c.startDate) >= winStart && new Date(c.startDate) <= today).length;
+        const prev = clients.filter(c => c.assignedCoachId === currentUser.id && new Date(c.startDate) >= prevStart && new Date(c.startDate) <= prevEnd).length;
+        const deltaValue = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : (curr > 0 ? 100 : 0);
+        return {
+          value: deltaValue,
+          type: deltaValue > 0 ? 'positive' as const : deltaValue < 0 ? 'negative' as const : 'neutral' as const,
+          label: '%'
+        };
+      })() },
     { label: 'Mes séances cette semaine', value: sessions.filter(s=>{
         const today=new Date(); const td=today.getDay(); const wstart=new Date(today); wstart.setDate(today.getDate()-td+(td===0?-6:1));
         const wend=new Date(wstart.getTime()+6*864e5);

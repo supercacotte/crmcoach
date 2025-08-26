@@ -1,27 +1,30 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Calendar, Clock, User, Plus, Search, Filter, CheckCircle, XCircle, Target, MessageSquare, FileText, CreditCard, Users, TrendingUp } from 'lucide-react';
+import { Calendar, Clock, User, Plus, Search, CheckCircle, XCircle, Target, FileText, Users } from 'lucide-react';
 import { Client } from '../types/Client';
 import CreateInvoiceModal from './CreateInvoiceModal';
 import SummaryBanner from './SummaryBanner';
 import KpiBanner from './KpiBanner';
 import SessionSlideOver from './SessionSlideOver';
 
+// ---------- Types ----------
+type SessionType = 'individual' | 'group' | 'discovery';
+type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show';
 
 interface Session {
   id: number;
   clientId: number;
   clientName: string;
-  date: string;
-  time: string;
+  date: string;   // YYYY-MM-DD
+  time: string;   // HH:mm
   duration: number;
-  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
-  type: 'individual' | 'group' | 'discovery';
+  status: SessionStatus;
+  type: SessionType;
   notes?: string;
   objectives?: string[];
   outcomes?: string;
   nextSteps?: string;
-
-  meetingUrl?: string;}
+  meetingUrl?: string;
+}
 
 interface SessionsPageProps {
   clients: Client[];
@@ -29,6 +32,48 @@ interface SessionsPageProps {
   onUpdateSessions?: (sessions: any[]) => void;
 }
 
+// ---------- Helpers & Labels ----------
+export const TYPE_LABELS: Record<SessionType, string> = {
+  individual: 'Séance individuelle',
+  group: 'Séance de groupe',
+  discovery: 'Séance découverte',
+};
+
+export const STATUS_LABELS: Record<SessionStatus, string> = {
+  scheduled: 'Planifiée',
+  completed: 'Terminée',
+  cancelled: 'Annulée',
+  no_show: 'Absence',
+};
+
+// compatibilité avec le JSX qui utilise statusLabels
+export const statusLabels = STATUS_LABELS;
+
+export const getStatusColor = (status: SessionStatus) => {
+  switch (status) {
+    case 'scheduled':
+      return 'bg-yellow-50 text-yellow-700 border border-yellow-100';
+    case 'completed':
+      return 'bg-green-50 text-green-700 border border-green-100';
+    case 'cancelled':
+      return 'bg-red-50 text-red-700 border border-red-100';
+    case 'no_show':
+    default:
+      return 'bg-gray-100 text-gray-700 border border-gray-200';
+  }
+};
+
+const getStatusIcon = (status: SessionStatus) => {
+  switch (status) {
+    case 'scheduled': return <Clock className="w-4 h-4" />;
+    case 'completed': return <CheckCircle className="w-4 h-4" />;
+    case 'cancelled': return <XCircle className="w-4 h-4" />;
+    case 'no_show': return <XCircle className="w-4 h-4" />;
+    default: return <Clock className="w-4 h-4" />;
+  }
+};
+
+// ---------- Component ----------
 const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: externalSessions = [], onUpdateSessions }) => {
   const [sessions, setSessions] = useState<Session[]>([
     {
@@ -83,80 +128,103 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
     },
   ]);
 
-  // Fusionner les séances externes avec les séances locales
+  // Fusionner les séances externes avec les séances locales (sans doublons d'id)
   React.useEffect(() => {
     if (externalSessions.length > 0) {
-      setSessions(prevSessions => {
-        const existingIds = prevSessions.map(s => s.id);
-        const newSessions = externalSessions.filter(s => !existingIds.includes(s.id));
-        return [...prevSessions, ...newSessions];
+      setSessions(prev => {
+        const existingIds = new Set(prev.map(s => s.id));
+        const toAdd = externalSessions
+          .filter((s: any) => !existingIds.has(s.id))
+          .map((s: any) => ({
+            // adaptation minimale si le shape diffère
+            id: s.id,
+            clientId: s.clientId ?? 0,
+            clientName: s.clientName ?? clients.find(c => c.id === s.clientId)?.name ?? 'Client',
+            date: s.date?.slice(0, 10) ?? '2024-01-01',
+            time: s.time ?? '09:00',
+            duration: Number(s.duration ?? 60),
+            status: (s.status ?? 'scheduled') as SessionStatus,
+            type: (s.type ?? 'individual') as SessionType,
+            notes: s.notes,
+            objectives: s.objectives,
+            outcomes: s.outcomes,
+            nextSteps: s.nextSteps,
+            meetingUrl: s.meetingUrl,
+          }));
+        return [...prev, ...toAdd];
       });
     }
-  }, [externalSessions]);
+  }, [externalSessions, clients]);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterType, setFilterType] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | SessionStatus>('all');
+  const [filterType, setFilterType] = useState<'all' | SessionType>('all');
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
   const [isCreateInvoiceModalOpen, setIsCreateInvoiceModalOpen] = useState(false);
   const [sessionForInvoice, setSessionForInvoice] = useState<Session | null>(null);
 
+  const filteredSessions = useMemo(
+    () =>
+      sessions.filter(session => {
+        const matchesSearch = session.clientName.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = filterStatus === 'all' || session.status === filterStatus;
+        const matchesType = filterType === 'all' || session.type === filterType;
+        return matchesSearch && matchesStatus && matchesType;
+      }),
+    [sessions, searchTerm, filterStatus, filterType]
+  );
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'scheduled': return <Clock className="w-4 h-4" />;
-      case 'completed': return <CheckCircle className="w-4 h-4" />;
-      case 'cancelled': return <XCircle className="w-4 h-4" />;
-      case 'no_show': return <XCircle className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
-    }
-  };
+  const upcomingSessions = useMemo(
+    () => sessions.filter(s => s.status === 'scheduled').slice(0, 3),
+    [sessions]
+  );
+  const completedThisWeek = useMemo(
+    () => sessions.filter(s => s.status === 'completed').length,
+    [sessions]
+  );
+  const totalScheduled = useMemo(
+    () => sessions.filter(s => s.status === 'scheduled').length,
+    [sessions]
+  );
+  const activeClients = useMemo(
+    () => clients.filter(c => c.status === 'active').length,
+    [clients]
+  );
 
-  const filteredSessions = useMemo(() => sessions.filter(session => {
-    const matchesSearch = session.clientName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || session.status === filterStatus;
-    const matchesType = filterType === 'all' || session.type === filterType;
-    
-    return matchesSearch && matchesStatus && matchesType;
-  }), [sessions, searchTerm, filterStatus, filterType]);
-
-  const upcomingSessions = useMemo(() => sessions.filter(s => s.status === 'scheduled').slice(0, 3), [sessions]);
-  const completedThisWeek = useMemo(() => sessions.filter(s => s.status === 'completed').length, [sessions]);
-  const totalScheduled = useMemo(() => sessions.filter(s => s.status === 'scheduled').length, [sessions]);
-  const activeClients = useMemo(() => clients.filter(c => c.status === 'active').length, [clients]);
-
-  // Calculate KPI data
-  const getKpiData = useCallback(() => [
-    {
-      label: 'Séances Planifiées',
-      value: totalScheduled,
-      icon: Calendar,
-      color: 'blue' as const,
-      tooltip: 'Nombre de séances à venir'
-    },
-    {
-      label: 'Cette Semaine',
-      value: completedThisWeek,
-      icon: CheckCircle,
-      color: 'green' as const,
-      tooltip: 'Séances terminées cette semaine'
-    },
-    {
-      label: 'Clients Actifs',
-      value: activeClients,
-      icon: Users,
-      color: 'purple' as const,
-      tooltip: 'Clients avec un statut actif'
-    },
-    {
-      label: 'Total Séances',
-      value: sessions.length,
-      icon: Target,
-      color: 'orange' as const,
-      tooltip: 'Nombre total de séances'
-    }
-  ], [totalScheduled, completedThisWeek, activeClients, sessions.length]);
+  const getKpiData = useCallback(
+    () => [
+      {
+        label: 'Séances Planifiées',
+        value: totalScheduled,
+        icon: Calendar,
+        color: 'blue' as const,
+        tooltip: 'Nombre de séances à venir',
+      },
+      {
+        label: 'Cette Semaine',
+        value: completedThisWeek,
+        icon: CheckCircle,
+        color: 'green' as const,
+        tooltip: 'Séances terminées cette semaine',
+      },
+      {
+        label: 'Clients Actifs',
+        value: activeClients,
+        icon: Users,
+        color: 'purple' as const,
+        tooltip: 'Clients avec un statut actif',
+      },
+      {
+        label: 'Total Séances',
+        value: sessions.length,
+        icon: Target,
+        color: 'orange' as const,
+        tooltip: 'Nombre total de séances',
+      },
+    ],
+    [totalScheduled, completedThisWeek, activeClients, sessions.length]
+  );
 
   const handleGenerateInvoice = (session: Session) => {
     setSessionForInvoice(session);
@@ -164,20 +232,21 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
   };
 
   const handleCreateInvoice = (newInvoice: any) => {
-    // Logique de création de facture
     console.log('Facture créée pour la séance:', sessionForInvoice, newInvoice);
     alert(`Facture ${newInvoice.invoiceNumber} créée pour la séance avec ${sessionForInvoice?.clientName}`);
     setIsCreateInvoiceModalOpen(false);
     setSessionForInvoice(null);
   };
 
-
-  // Patch selected session state (status/date/time/notes/nextSteps/meetingUrl)
+  // Patch selected session (status/date/time/notes/nextSteps/meetingUrl)
   const patchSelectedSession = (patch: Partial<Session>) => {
     if (!selectedSession) return;
-    setSessions(prev => prev.map(s => (s.id === selectedSession.id ? { ...s, ...patch } : s)));
-    setSelectedSession(prev => (prev ? { ...(prev as Session), ...patch } : prev));
-    onUpdateSessions?.(sessions ? [...sessions] : []);
+    setSessions(prev => {
+      const next = prev.map(s => (s.id === selectedSession.id ? { ...s, ...patch } : s));
+      onUpdateSessions?.(next);
+      return next;
+    });
+    setSelectedSession(prev => (prev ? { ...prev, ...patch } : prev));
   };
 
   const openInvoiceFromSlideOver = () => {
@@ -187,25 +256,28 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
 
   const handleCreateNextSession = (base: { date: string; time: string; duration: number }) => {
     if (!selectedSession) return;
-    const next = new Date(base.date);
-    next.setDate(next.getDate() + 7);
-    const newS: Session = {
+    const nextDate = new Date(base.date);
+    nextDate.setDate(nextDate.getDate() + 7);
+    const newSession: Session = {
       id: Math.max(0, ...sessions.map(s => s.id)) + 1,
       clientId: selectedSession.clientId,
       clientName: selectedSession.clientName,
-      date: next.toISOString().slice(0,10),
+      date: nextDate.toISOString().slice(0, 10),
       time: base.time,
       duration: base.duration,
       status: 'scheduled',
       type: selectedSession.type,
-      meetingUrl: selectedSession.meetingUrl
+      meetingUrl: selectedSession.meetingUrl,
     };
-    setSessions(prev => [newS, ...prev]);
+    setSessions(prev => {
+      const next = [newSession, ...prev];
+      onUpdateSessions?.(next);
+      return next;
+    });
   };
 
   const handleSendRecap = () => {
     if (!selectedSession) return;
-    // TODO: integrate email service; for now, simple UX stub
     alert(`Récap envoyé à ${selectedSession.clientName}`);
   };
 
@@ -217,8 +289,9 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
             <h2 className="text-2xl font-semibold text-gray-900">Séances de Coaching</h2>
             <p className="text-sm text-gray-500 mt-1">Gérez vos séances et suivez les progrès</p>
           </div>
-          <button 
-            aria-label="Créer une nouvelle séance" onClick={() => alert('Fonctionnalité de création de séance à venir')}
+          <button
+            aria-label="Créer une nouvelle séance"
+            onClick={() => alert('Fonctionnalité de création de séance à venir')}
             className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 flex items-center justify-center text-sm sm:text-base"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -232,17 +305,18 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
-              aria-label="Rechercher par client" placeholder="Rechercher par client..."
+              aria-label="Rechercher par client"
+              placeholder="Rechercher par client..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
             />
           </div>
-          
+
           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
             <select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => setFilterStatus(e.target.value as any)}
               className="px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
             >
               <option value="all">Tous les statuts</option>
@@ -251,10 +325,10 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
               <option value="cancelled">Annulées</option>
               <option value="no_show">Absences</option>
             </select>
-            
+
             <select
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
+              onChange={(e) => setFilterType(e.target.value as any)}
               className="px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
             >
               <option value="all">Tous les types</option>
@@ -265,13 +339,10 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
           </div>
         </div>
       </div>
-      
+
       {/* KPI Banner */}
-      <KpiBanner
-        items={getKpiData()}
-        dense={false}
-      />
-      
+      <KpiBanner items={getKpiData()} dense={false} />
+
       <div className="flex flex-col lg:flex-row min-h-0">
         <div className="flex-1 p-6 min-h-0 overflow-y-auto">
           <div className="space-y-4">
@@ -280,7 +351,13 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
                 key={session.id}
                 className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow duration-200"
               >
-                <div onClick={() => { setSelectedSession(session); setIsSlideOverOpen(true); }} className="cursor-pointer">
+                <div
+                  onClick={() => {
+                    setSelectedSession(session);
+                    setIsSlideOverOpen(true);
+                  }}
+                  className="cursor-pointer"
+                >
                   <SummaryBanner
                     type="session"
                     data={{
@@ -290,15 +367,20 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
                       duration: `${session.duration}min`,
                       sessionType: TYPE_LABELS[session.type],
                       status: session.status,
-                      assignedCoach: 'Coach assigné', meetingUrl: (session as any).meetingUrl // surfacer dans SummaryBanner si supporté
+                      assignedCoach: 'Coach assigné',
+                      meetingUrl: (session as any).meetingUrl, // surfacer dans SummaryBanner si supporté
                     }}
                   />
                 </div>
-                
+
                 {/* Actions */}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                   <div className="flex items-center space-x-2">
-                    <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(session.status)}`}>
+                    <span
+                      className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
+                        session.status
+                      )}`}
+                    >
                       {getStatusIcon(session.status)}
                       <span className="ml-1">{STATUS_LABELS[session.status]}</span>
                     </span>
@@ -306,7 +388,7 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
                       {TYPE_LABELS[session.type]}
                     </span>
                   </div>
-                  
+
                   {session.status === 'completed' && (
                     <button
                       onClick={(e) => {
@@ -320,7 +402,7 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
                     </button>
                   )}
                 </div>
-                
+
                 {session.objectives && (
                   <div className="mb-3">
                     <h4 className="text-sm font-medium text-gray-700 mb-1">Objectifs:</h4>
@@ -334,14 +416,14 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
                     </ul>
                   </div>
                 )}
-                
+
                 {session.outcomes && (
                   <div className="mb-3">
                     <h4 className="text-sm font-medium text-gray-700 mb-1">Résultats:</h4>
                     <p className="text-sm text-gray-600">{session.outcomes}</p>
                   </div>
                 )}
-                
+
                 {session.nextSteps && (
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-1">Prochaines étapes:</h4>
@@ -352,7 +434,7 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
             ))}
           </div>
         </div>
-        
+
         <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-gray-200 p-4 sm:p-6 min-h-0 overflow-y-auto">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Prochaines Séances</h3>
           <div className="space-y-3">
@@ -375,7 +457,7 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
               </div>
             ))}
           </div>
-          
+
           {selectedSession && (
             <div className="mt-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Détails de la Séance</h3>
@@ -398,7 +480,7 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
                     <strong>Statut:</strong> {statusLabels[selectedSession.status]}
                   </div>
                 </div>
-                
+
                 {selectedSession.notes && (
                   <div className="mt-3">
                     <h5 className="text-sm font-medium text-gray-700 mb-1">Notes:</h5>
@@ -410,7 +492,6 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
           )}
         </div>
       </div>
-      
 
       <SessionSlideOver
         isOpen={isSlideOverOpen}
@@ -431,15 +512,17 @@ const SessionsPage: React.FC<SessionsPageProps> = ({ clients, sessions: external
             setSessionForInvoice(null);
           }}
           client={clients.find(c => c.name === sessionForInvoice.clientName)}
-          sessions={[{
-            id: sessionForInvoice.id,
-            clientId: clients.find(c => c.name === sessionForInvoice.clientName)?.id || 0,
-            date: sessionForInvoice.date,
-            type: sessionForInvoice.type,
-            duration: sessionForInvoice.duration,
-            status: 'completed',
-            description: `Séance ${TYPE_LABELS[sessionForInvoice.type]} - ${sessionForInvoice.duration}min`
-          }]}
+          sessions={[
+            {
+              id: sessionForInvoice.id,
+              clientId: clients.find(c => c.name === sessionForInvoice.clientName)?.id || 0,
+              date: sessionForInvoice.date,
+              type: sessionForInvoice.type,
+              duration: sessionForInvoice.duration,
+              status: 'completed',
+              description: `Séance ${TYPE_LABELS[sessionForInvoice.type]} - ${sessionForInvoice.duration}min`,
+            } as any,
+          ]}
           onCreateInvoice={handleCreateInvoice}
         />
       )}

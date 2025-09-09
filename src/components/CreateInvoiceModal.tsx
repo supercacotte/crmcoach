@@ -343,39 +343,47 @@ const CreateInvoiceModal: React.FC<CreateInvoiceModalProps> = ({
               </div>
 
               {/* Séances */}
-              {selectedClient && clientSessions.length > 0 && (
+              {selectedClient && (
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">Séances Réalisées</h3>
-                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                    <div className="space-y-2">
-                      {clientSessions.map((session) => (
-                        <div key={session.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="flex items-center">
-                            <button
-                              type="button"
-                              onClick={() => toggleSession(session.id)}
-                              className="mr-3 text-blue-600 hover:text-blue-800"
-                            >
-                              {selectedSessions.includes(session.id) ? (
-                                <CheckSquare className="w-5 h-5" />
-                              ) : (
-                                <Square className="w-5 h-5" />
-                              )}
-                            </button>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                Séance {session.type} - {new Date(session.date).toLocaleDateString('fr-FR')}
-                              </p>
-                              <p className="text-xs text-gray-500">{session.duration} minutes</p>
+                  {clientSessions.length > 0 ? (
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                      <div className="space-y-2">
+                        {clientSessions.map((session) => (
+                          <div key={session.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                            <div className="flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => toggleSession(session.id)}
+                                className="mr-3 text-blue-600 hover:text-blue-800"
+                              >
+                                {selectedSessions.includes(session.id) ? (
+                                  <CheckSquare className="w-5 h-5" />
+                                ) : (
+                                  <Square className="w-5 h-5" />
+                                )}
+                              </button>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  Séance {session.type} - {new Date(session.date).toLocaleDateString('fr-FR')}
+                                </p>
+                                <p className="text-xs text-gray-500">{session.duration} minutes</p>
+                              </div>
                             </div>
+                            <span className="text-sm font-semibold text-gray-900">
+                              {selectedClient.billing.hourlyRate}€
+                            </span>
                           </div>
-                          <span className="text-sm font-semibold text-gray-900">
-                            {selectedClient.billing.hourlyRate}€
-                          </span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 text-center">
+                      <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600">Aucune séance terminée à facturer</p>
+                      <p className="text-sm text-gray-500 mt-1">Les séances terminées apparaîtront ici</p>
+                    </div>
+                  )}
                 </div>
               )}
 

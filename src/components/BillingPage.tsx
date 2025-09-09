@@ -621,7 +621,13 @@ Facture générée par CoachCRM
                       <tr 
                         key={invoice.id}
                         className="hover:bg-gray-50 cursor-pointer transition-colors duration-150"
-                        onClick={() => handleRowClick(invoice)}
+                        onClick={(e) => {
+                          // Empêcher le clic si on clique sur une action
+                          if ((e.target as HTMLElement).closest('button')) {
+                            return;
+                          }
+                          handleRowClick(invoice);
+                        }}
                       >
                         {overdueInvoicesCount > 0 && (
                           <td className="px-6 py-4 whitespace-nowrap">

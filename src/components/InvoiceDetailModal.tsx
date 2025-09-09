@@ -35,14 +35,46 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   };
 
   const handleDownload = () => {
-    // Simuler le téléchargement PDF
+    // Générer un PDF détaillé avec toutes les informations
+    const invoiceContent = `
+FACTURE ${invoice.invoiceNumber}
+
+INFORMATIONS CLIENT:
+Nom: ${invoice.clientName}
+Email: ${invoice.clientEmail}
+Téléphone: ${client.phone}
+${client.company ? `Entreprise: ${client.company}` : ''}
+
+DÉTAILS FACTURE:
+Date d'émission: ${new Date(invoice.date).toLocaleDateString('fr-FR')}
+Date d'échéance: ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}
+Statut: ${getStatusLabel(invoice.status)}
+
+PRESTATIONS:
+${invoice.items.map(item => 
+  `${item.description}
+  Quantité: ${item.quantity}
+  Prix unitaire: ${item.unitPrice.toLocaleString('fr-FR')}€
+  Total: ${item.total.toLocaleString('fr-FR')}€`
+).join('\n\n')}
+
+TOTAL TTC: ${invoice.amount.toLocaleString('fr-FR')}€
+
+${invoice.notes ? `NOTES:\n${invoice.notes}` : ''}
+
+---
+Facture générée par CoachCRM
+Date de génération: ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}
+    `.trim();
+
     const element = document.createElement('a');
-    const file = new Blob([`Facture ${invoice.invoiceNumber} - ${invoice.clientName}`], {type: 'text/plain'});
+    const file = new Blob([invoiceContent], { type: 'text/plain;charset=utf-8' });
     element.href = URL.createObjectURL(file);
-    element.download = `${invoice.invoiceNumber}.pdf`;
+    element.download = `Facture_${invoice.invoiceNumber}_${invoice.clientName.replace(/\s+/g, '_')}.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+    URL.revokeObjectURL(element.href);
   };
 
   const handleSend = () => {

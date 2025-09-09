@@ -123,14 +123,35 @@ const BillingPage: React.FC<BillingPageProps> = ({ clients, onUpdateClient, curr
   };
 
   const handleDownloadInvoice = (invoice: any) => {
-    // Simuler le téléchargement PDF
+    // Générer un PDF simple avec les données de la facture
+    const invoiceContent = `
+FACTURE ${invoice.invoiceNumber}
+
+Client: ${invoice.clientName}
+Email: ${invoice.clientEmail}
+Date: ${new Date(invoice.date).toLocaleDateString('fr-FR')}
+Échéance: ${new Date(invoice.dueDate).toLocaleDateString('fr-FR')}
+
+PRESTATIONS:
+${invoice.items?.map(item => `- ${item.description}: ${item.quantity} x ${item.unitPrice}€ = ${item.total}€`).join('\n') || 'Aucune prestation détaillée'}
+
+TOTAL: ${invoice.amount.toLocaleString('fr-FR')}€
+STATUT: ${getStatusLabel(invoice.status)}
+
+${invoice.notes ? `NOTES:\n${invoice.notes}` : ''}
+
+---
+Facture générée par CoachCRM
+    `.trim();
+
     const element = document.createElement('a');
-    const file = new Blob([`Facture ${invoice.invoiceNumber} - ${invoice.clientName}`], {type: 'text/plain'});
+    const file = new Blob([invoiceContent], { type: 'text/plain;charset=utf-8' });
     element.href = URL.createObjectURL(file);
-    element.download = `${invoice.invoiceNumber}.pdf`;
+    element.download = `Facture_${invoice.invoiceNumber}.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+    URL.revokeObjectURL(element.href);
   };
 
   const handleSendInvoice = (invoice: any) => {
